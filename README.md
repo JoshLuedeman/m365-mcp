@@ -2,10 +2,10 @@
 
 **Microsoft 365 tools for any MCP-compatible AI client — Mail, Calendar, Tasks, and Contacts via the Microsoft Graph API.**
 
-[![npm version](https://img.shields.io/npm/v/m365-mcp)](https://www.npmjs.com/package/m365-mcp)
-[![license](https://img.shields.io/npm/l/m365-mcp)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/@joshluedeman/m365-mcp)](https://www.npmjs.com/package/@joshluedeman/m365-mcp)
+[![license](https://img.shields.io/npm/l/@joshluedeman/m365-mcp)](./LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/joshluedeman/m365-mcp/ci.yml?label=CI)](https://github.com/joshluedeman/m365-mcp/actions)
-[![node](https://img.shields.io/node/v/m365-mcp)](https://www.npmjs.com/package/m365-mcp)
+[![node](https://img.shields.io/node/v/@joshluedeman/m365-mcp)](https://www.npmjs.com/package/@joshluedeman/m365-mcp)
 
 `m365-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that connects your Microsoft 365 account to any MCP-compatible AI client. It exposes 22 tools across Mail, Calendar, Tasks (Microsoft To Do), and Contacts — all authenticated via a single device code sign-in with no Azure portal setup required. It runs over stdio and works with Claude Desktop, Claude Code, Cursor, Zed, Windsurf, and any other MCP-compatible client.
 
@@ -18,7 +18,7 @@
 - ✅ **Tasks** — full Microsoft To Do integration: task lists, tasks, create/complete/delete
 - 👤 **Contacts** — search, read, create, and update personal contacts
 - 🔐 **Zero Azure setup** — ships with a pre-registered multi-tenant app; no portal configuration required
-- 📦 **npx distribution** — run with `npx m365-mcp`, no global install needed
+- 📦 **npx distribution** — run with `npx @joshluedeman/m365-mcp`, no global install needed
 - 🖥 **Any MCP client** — Claude Desktop, Claude Code, Cursor, Zed, Windsurf, and more
 
 ---
@@ -43,7 +43,7 @@ graph LR
 **1. (Optional) Install globally**
 
 ```bash
-npm install -g m365-mcp
+npm install -g @joshluedeman/m365-mcp
 ```
 
 Or skip this and use `npx` directly — it works either way.
@@ -51,7 +51,7 @@ Or skip this and use `npx` directly — it works either way.
 **2. Run setup**
 
 ```bash
-npx m365-mcp setup
+npx @joshluedeman/m365-mcp setup
 ```
 
 This opens a browser for device code sign-in. Sign in with your Microsoft 365 account and the token is cached to `~/.config/m365-mcp/token-cache.json`. You will not be prompted again unless the refresh token expires (~90 days).
@@ -76,14 +76,14 @@ Most MCP clients accept a JSON server definition in this form:
 **Claude Code** — add via CLI:
 
 ```bash
-claude mcp add m365 npx m365-mcp
+claude mcp add m365 -- npx @joshluedeman/m365-mcp
 ```
 
 **Cursor** — add to `.cursor/mcp.json` in your project or `~/.cursor/mcp.json` globally.
 
 **Zed** — add to your Zed settings under `"context_servers"`.
 
-**Other clients** — consult your client's MCP server configuration docs; the command is `npx m365-mcp`.
+**Other clients** — consult your client's MCP server configuration docs; the command is `npx @joshluedeman/m365-mcp`.
 
 ---
 
@@ -97,7 +97,7 @@ sequenceDiagram
     participant S as m365-mcp setup
     participant A as Azure AD
 
-    U->>S: npx m365-mcp setup
+    U->>S: npx @joshluedeman/m365-mcp setup
     S->>A: Request device code
     A-->>S: Device code + verification URL
     S-->>U: Display URL and code
@@ -107,7 +107,7 @@ sequenceDiagram
     S-->>U: Done — setup complete
 ```
 
-On subsequent runs the server loads the cached token silently. The refresh token is valid for approximately 90 days; re-run `npx m365-mcp setup` if it expires.
+On subsequent runs the server loads the cached token silently. The refresh token is valid for approximately 90 days; re-run `npx @joshluedeman/m365-mcp setup` if it expires.
 
 ---
 

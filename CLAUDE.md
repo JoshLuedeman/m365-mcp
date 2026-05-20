@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`m365-mcp` is a TypeScript MCP server that wraps the Microsoft Graph API and ships as an npm package (`npx m365-mcp`). It provides Claude Desktop, Claude Code, and Cowork with tools for Mail, Calendar, Tasks (Microsoft To Do), and Contacts — filling the gap left by the Anthropic M365 connector (no To Do/Planner support). See `docs/adr/ADR-001-m365-mcp-server.md` for full rationale.
+`m365-mcp` is a TypeScript MCP server that wraps the Microsoft Graph API and ships as an npm package (`npx @joshluedeman/m365-mcp`). It provides Claude Desktop, Claude Code, and Cowork with tools for Mail, Calendar, Tasks (Microsoft To Do), and Contacts — filling the gap left by the Anthropic M365 connector (no To Do/Planner support). See `docs/adr/ADR-001-m365-mcp-server.md` for full rationale.
 
 ## Commands
 
@@ -16,13 +16,13 @@ npm run lint         # eslint with @typescript-eslint
 npm run typecheck    # tsc --noEmit
 
 # First-time setup (interactive installer)
-npx m365-mcp setup   # creates Azure AD app (via CLI or manual), writes config, runs auth
+npx @joshluedeman/m365-mcp setup   # creates Azure AD app (via CLI or manual), writes config, runs auth
 
 # Auth only (if already configured)
-npx m365-mcp auth    # device code login → ~/.config/m365-mcp/token-cache.json
+npx @joshluedeman/m365-mcp auth    # device code login → ~/.config/m365-mcp/token-cache.json
 
 # Run MCP server (stdio — for Claude Desktop / Claude Code)
-npx m365-mcp
+npx @joshluedeman/m365-mcp
 ```
 
 Tests use **Vitest** (`tests/` directory, 48 tests across 6 files):
@@ -45,7 +45,7 @@ Tests use **Vitest** (`tests/` directory, 48 tests across 6 files):
 3. `.m365-mcp.json` in `process.cwd()` ← legacy fallback
 4. `DEFAULT_CLIENT_ID` from `app-config.ts` ← default for all users
 
-**Setup command** (`src/setup/index.ts`): `npx m365-mcp setup` prints a brief banner + permission summary, checks for an existing token cache, optionally prompts to re-authenticate, then calls `runAuthCommand()`. No app registration steps — the shared client ID handles everything. All output to stderr; `/dev/tty` for prompts to avoid consuming MCP stdio.
+**Setup command** (`src/setup/index.ts`): `npx @joshluedeman/m365-mcp setup` prints a brief banner + permission summary, checks for an existing token cache, optionally prompts to re-authenticate, then calls `runAuthCommand()`. No app registration steps — the shared client ID handles everything. All output to stderr; `/dev/tty` for prompts to avoid consuming MCP stdio.
 
 **Graph client:** `@microsoft/microsoft-graph-client` (official SDK — handles auth injection, base URL, retries). Types from `@microsoft/microsoft-graph-types`. All Graph calls go through `/v1.0/`.
 
@@ -84,7 +84,7 @@ Tests use **Vitest** (`tests/` directory, 48 tests across 6 files):
 
 Repository is public-ready. Remaining work before npm publish:
 - [ ] Complete Microsoft publisher verification (needs MPN/Partner Network ID — see memory)
-- [ ] End-to-end auth smoke test with a real user signing in via `npx m365-mcp setup`
+- [ ] End-to-end auth smoke test with a real user signing in via `npx @joshluedeman/m365-mcp setup`
 - [ ] `git init` + push to `https://github.com/joshluedeman/m365-mcp`
 - [ ] npm publish
 - [ ] V2: Planner, Teams, SharePoint tools
