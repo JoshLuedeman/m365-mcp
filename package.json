@@ -1,0 +1,63 @@
+{
+  "name": "m365-mcp",
+  "version": "0.1.0",
+  "description": "Microsoft 365 MCP server — Mail, Calendar, Tasks, Contacts via Microsoft Graph",
+  "type": "module",
+  "bin": {
+    "m365-mcp": "./dist/index.cjs"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "vitest": {
+    "environment": "node",
+    "include": ["tests/**/*.test.ts"]
+  },
+  "dependencies": {
+    "@azure/msal-node": "^5.2.2",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@microsoft/microsoft-graph-types": "^2.43.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@typescript-eslint/eslint-plugin": "^8.59.4",
+    "@typescript-eslint/parser": "^8.59.4",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^10.4.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "mcp",
+    "microsoft365",
+    "graph-api",
+    "claude",
+    "ai"
+  ],
+  "license": "MIT",
+  "author": "Josh Luedeman",
+  "homepage": "https://github.com/joshluedeman/m365-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joshluedeman/m365-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joshluedeman/m365-mcp/issues"
+  }
+}
