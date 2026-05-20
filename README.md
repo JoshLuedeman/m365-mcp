@@ -1,13 +1,13 @@
 # 📬 m365-mcp
 
-**Microsoft 365 tools for Claude — Mail, Calendar, Tasks, and Contacts via the Microsoft Graph API.**
+**Microsoft 365 tools for any MCP-compatible AI client — Mail, Calendar, Tasks, and Contacts via the Microsoft Graph API.**
 
 [![npm version](https://img.shields.io/npm/v/m365-mcp)](https://www.npmjs.com/package/m365-mcp)
 [![license](https://img.shields.io/npm/l/m365-mcp)](./LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/joshluedeman/m365-mcp/ci.yml?label=CI)](https://github.com/joshluedeman/m365-mcp/actions)
 [![node](https://img.shields.io/node/v/m365-mcp)](https://www.npmjs.com/package/m365-mcp)
 
-`m365-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that connects Claude to your Microsoft 365 account. It exposes 22 tools across Mail, Calendar, Tasks (Microsoft To Do), and Contacts. Anthropic's built-in M365 connector covers Mail and Calendar but has no Tasks support — this package fills that gap and adds full Contacts access as well. It runs over stdio and works with Claude Desktop, Claude Code, and any MCP-compatible client.
+`m365-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that connects your Microsoft 365 account to any MCP-compatible AI client. It exposes 22 tools across Mail, Calendar, Tasks (Microsoft To Do), and Contacts — all authenticated via a single device code sign-in with no Azure portal setup required. It runs over stdio and works with Claude Desktop, Claude Code, Cursor, Zed, Windsurf, and any other MCP-compatible client.
 
 ---
 
@@ -19,7 +19,7 @@
 - 👤 **Contacts** — search, read, create, and update personal contacts
 - 🔐 **Zero Azure setup** — ships with a pre-registered multi-tenant app; no portal configuration required
 - 📦 **npx distribution** — run with `npx m365-mcp`, no global install needed
-- 🖥 **Claude Desktop & Claude Code** — works wherever MCP stdio servers are supported
+- 🖥 **Any MCP client** — Claude Desktop, Claude Code, Cursor, Zed, Windsurf, and more
 
 ---
 
@@ -27,8 +27,8 @@
 
 ```mermaid
 graph LR
-    User["User"] --> Claude["Claude"]
-    Claude -->|"MCP stdio"| Server["m365-mcp"]
+    User["User"] --> Client["MCP Client"]
+    Client -->|"MCP stdio"| Server["m365-mcp"]
     Server -->|"HTTPS"| Graph["Microsoft Graph API"]
     Graph --> Mail["Mail"]
     Graph --> Calendar["Calendar"]
@@ -56,9 +56,9 @@ npx m365-mcp setup
 
 This opens a browser for device code sign-in. Sign in with your Microsoft 365 account and the token is cached to `~/.config/m365-mcp/token-cache.json`. You will not be prompted again unless the refresh token expires (~90 days).
 
-**3. Add to Claude**
+**3. Add to your MCP client**
 
-**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or the equivalent path on your platform:
+Most MCP clients accept a JSON server definition in this form:
 
 ```json
 {
@@ -71,22 +71,19 @@ This opens a browser for device code sign-in. Sign in with your Microsoft 365 ac
 }
 ```
 
+**Claude Desktop** — edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows).
+
 **Claude Code** — add via CLI:
 
 ```bash
 claude mcp add m365 npx m365-mcp
 ```
 
-Or edit `.claude/mcp.json` in your project (or `~/.claude/mcp.json` for global config):
+**Cursor** — add to `.cursor/mcp.json` in your project or `~/.cursor/mcp.json` globally.
 
-```json
-{
-  "m365": {
-    "command": "npx",
-    "args": ["m365-mcp"]
-  }
-}
-```
+**Zed** — add to your Zed settings under `"context_servers"`.
+
+**Other clients** — consult your client's MCP server configuration docs; the command is `npx m365-mcp`.
 
 ---
 
