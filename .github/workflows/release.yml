@@ -2,24 +2,34 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches: [main]
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: ['18', '20', '22']
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
           cache: npm
           registry-url: 'https://registry.npmjs.org'
 
@@ -41,13 +51,10 @@ jobs:
       - name: Verify binary syntax
         run: node --check dist/index.cjs
 
-      - name: Publish to npm
-        run: npm publish
+      - name: Release
+        if: matrix.node-version == '20'
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          fail_on_unmatched_files: false
+        run: npx semantic-release

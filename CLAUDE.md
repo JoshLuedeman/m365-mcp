@@ -25,10 +25,14 @@ npx @joshluedeman/m365-mcp auth    # device code login → ~/.config/m365-mcp/to
 npx @joshluedeman/m365-mcp
 ```
 
-Tests use **Vitest** (`tests/` directory, 48 tests across 6 files):
+Tests use **Vitest** (`tests/` directory, 127 tests across 10 files):
 - `tests/utils/` — unit tests for errors, formatting, pagination
 - `tests/setup/config-writer.test.ts` — config read/write with temp dirs
 - `tests/tools/schemas.test.ts` — Zod schema validation (20 cases)
+- `tests/tools/tasks.test.ts` — handler smoke tests for all 7 task tools (21 cases)
+- `tests/tools/mail.test.ts` — handler smoke tests for all 6 mail tools (23 cases)
+- `tests/tools/calendar.test.ts` — handler smoke tests for all 5 calendar tools (20 cases)
+- `tests/tools/contacts.test.ts` — handler smoke tests for all 4 contact tools (15 cases)
 - `tests/server.test.ts` — integration test: spies on `McpServer.prototype.tool` and verifies all 22 tools are registered
 
 ## Architecture
