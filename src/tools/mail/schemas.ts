@@ -102,6 +102,11 @@ export const DeleteEmailSchema = {
   mailbox: mailboxField,
 };
 
+export const EnsureFolderSchema = {
+  displayName: z.string().min(1).describe('Display name of the mail folder to get or create'),
+  mailbox: mailboxField,
+};
+
 export const MarkReadSchema = {
   messageId: z.string().describe('The ID of the email message'),
   isRead: z

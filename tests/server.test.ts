@@ -17,7 +17,7 @@ describe('createServer', () => {
     vi.clearAllMocks();
   });
 
-  it('registers all 25 tools', async () => {
+  it('registers all 26 tools', async () => {
     const registeredTools: string[] = [];
 
     vi.spyOn(McpServer.prototype, 'tool').mockImplementation(
@@ -41,6 +41,7 @@ describe('createServer', () => {
       'reply_email',
       'delete_email',
       'mark_read',
+      'ensure_folder',
       // Calendar
       'search_events',
       'get_event',
@@ -62,7 +63,7 @@ describe('createServer', () => {
       'update_contact',
     ];
 
-    expect(registeredTools).toHaveLength(25);
+    expect(registeredTools).toHaveLength(26);
     for (const name of expected) {
       expect(registeredTools).toContain(name);
     }

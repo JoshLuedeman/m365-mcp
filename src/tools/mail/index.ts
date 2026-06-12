@@ -8,6 +8,7 @@ import {
   ReplyEmailSchema,
   DeleteEmailSchema,
   MarkReadSchema,
+  EnsureFolderSchema,
 } from './schemas.js';
 import {
   handleSearchEmails,
@@ -19,6 +20,7 @@ import {
   handleReplyEmail,
   handleDeleteEmail,
   handleMarkRead,
+  handleEnsureFolder,
 } from './handlers.js';
 
 export function register(server: McpServer): void {
@@ -84,5 +86,12 @@ export function register(server: McpServer): void {
     'Mark an email as read or unread',
     MarkReadSchema,
     async (params) => handleMarkRead(params),
+  );
+
+  server.tool(
+    'ensure_folder',
+    'Get an existing mail folder by name, or create it if it does not exist. Returns the folder ID and a created flag.',
+    EnsureFolderSchema,
+    async (params) => handleEnsureFolder(params),
   );
 }

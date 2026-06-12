@@ -267,3 +267,47 @@ export async function handleMarkRead(params: MarkReadParams): Promise<CallToolRe
     return formatError(parseGraphError(err));
   }
 }
+
+interface EnsureFolderParams {
+  displayName: string;
+  mailbox?: string;
+}
+
+/**
+ * Gets an existing mail folder by display name, or creates it if it doesn't exist.
+ * Returns the folder ID and whether it was newly created.
+ */
+export async function handleEnsureFolder(params: EnsureFolderParams): Promise<CallToolResult> {
+  try {
+    const token = await getAccessToken();
+    const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
+
+    // Fetch all folders and look for a case-insensitive name match
+    const folders = await collectAllPages<MailFolder>(client, `${base}/mailFolders`);
+    const existing = folders.find(
+      (f) => (f.displayName ?? '').toLowerCase() === params.displayName.toLowerCase(),
+    );
+
+    if (existing) {
+      return formatResponse({
+        id: existing.id,
+        displayName: existing.displayName,
+        created: false,
+      });
+    }
+
+    // Not found — create it
+    const created = await client
+      .api(`${base}/mailFolders`)
+      .post({ displayName: params.displayName }) as MailFolder;
+
+    return formatResponse({
+      id: created.id,
+      displayName: created.displayName,
+      created: true,
+    });
+  } catch (err) {
+    return formatError(parseGraphError(err));
+  }
+}

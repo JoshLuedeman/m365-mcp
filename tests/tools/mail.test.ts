@@ -23,6 +23,7 @@ import {
   handleReplyEmail,
   handleDeleteEmail,
   handleMarkRead,
+  handleEnsureFolder,
 } from '../../src/tools/mail/handlers.js';
 
 // ---------------------------------------------------------------------------
@@ -576,5 +577,85 @@ describe('getApiBase (via graph/client mock)', () => {
 
   it('returns /users/{mailbox} when mailbox is provided', () => {
     expect(getApiBase('user@example.com')).toBe('/users/user@example.com');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleEnsureFolder
+// ---------------------------------------------------------------------------
+
+describe('handleEnsureFolder', () => {
+  let mockClient: ReturnType<typeof vi.fn>;
+  let mockApi: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    mockApi = vi.fn();
+    mockClient = vi.fn().mockReturnValue({ api: mockApi });
+    (getGraphClient as ReturnType<typeof vi.fn>).mockReturnValue({ api: mockApi });
+  });
+
+  it('returns existing folder without creating when name matches (case-insensitive)', async () => {
+    const existingFolder = { id: 'folder-123', displayName: 'Newsletters' };
+    // First call: GET /mailFolders (list)
+    mockApi.mockReturnValue({
+      get: vi.fn().mockResolvedValue({ value: [existingFolder], '@odata.nextLink': undefined }),
+      post: vi.fn(),
+    });
+
+    const result = await handleEnsureFolder({ displayName: 'newsletters' });
+    const data = JSON.parse((result.content[0] as { text: string }).text);
+
+    expect(data.id).toBe('folder-123');
+    expect(data.displayName).toBe('Newsletters');
+    expect(data.created).toBe(false);
+  });
+
+  it('creates folder when name does not exist', async () => {
+    const newFolder = { id: 'new-folder-456', displayName: 'Receipts' };
+    const apiObj = {
+      get: vi.fn().mockResolvedValue({ value: [], '@odata.nextLink': undefined }),
+      post: vi.fn().mockResolvedValue(newFolder),
+    };
+    mockApi.mockReturnValue(apiObj);
+
+    const result = await handleEnsureFolder({ displayName: 'Receipts' });
+    const data = JSON.parse((result.content[0] as { text: string }).text);
+
+    expect(data.id).toBe('new-folder-456');
+    expect(data.displayName).toBe('Receipts');
+    expect(data.created).toBe(true);
+  });
+
+  it('uses /me/mailFolders when no mailbox provided', async () => {
+    const apiObj = {
+      get: vi.fn().mockResolvedValue({ value: [], '@odata.nextLink': undefined }),
+      post: vi.fn().mockResolvedValue({ id: 'x', displayName: 'Test' }),
+    };
+    mockApi.mockReturnValue(apiObj);
+
+    await handleEnsureFolder({ displayName: 'Test' });
+
+    expect(mockApi).toHaveBeenCalledWith('/me/mailFolders');
+  });
+
+  it('uses /users/{mailbox}/mailFolders when mailbox is provided', async () => {
+    const apiObj = {
+      get: vi.fn().mockResolvedValue({ value: [], '@odata.nextLink': undefined }),
+      post: vi.fn().mockResolvedValue({ id: 'x', displayName: 'Test' }),
+    };
+    mockApi.mockReturnValue(apiObj);
+
+    await handleEnsureFolder({ displayName: 'Test', mailbox: 'josh@example.com' });
+
+    expect(mockApi).toHaveBeenCalledWith('/users/josh@example.com/mailFolders');
+  });
+
+  it('returns isError on Graph failure', async () => {
+    mockApi.mockReturnValue({
+      get: vi.fn().mockRejectedValue(new Error('Graph error')),
+    });
+
+    const result = await handleEnsureFolder({ displayName: 'Test' });
+    expect(result.isError).toBe(true);
   });
 });
