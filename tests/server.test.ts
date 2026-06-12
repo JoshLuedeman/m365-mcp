@@ -6,12 +6,18 @@ vi.mock('../src/auth/msal-client.js', () => ({
   getMsalClient: vi.fn(),
 }));
 
+// Mock client credentials flow to avoid env var requirements during server creation
+vi.mock('../src/auth/client-credentials-flow.js', () => ({
+  acquireAppToken: vi.fn(),
+  resetClientCredentialState: vi.fn(),
+}));
+
 describe('createServer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('registers all 22 tools', async () => {
+  it('registers all 25 tools', async () => {
     const registeredTools: string[] = [];
 
     vi.spyOn(McpServer.prototype, 'tool').mockImplementation(
@@ -32,6 +38,9 @@ describe('createServer', () => {
       'flag_email',
       'list_mail_folders',
       'move_email',
+      'reply_email',
+      'delete_email',
+      'mark_read',
       // Calendar
       'search_events',
       'get_event',
@@ -53,7 +62,7 @@ describe('createServer', () => {
       'update_contact',
     ];
 
-    expect(registeredTools).toHaveLength(22);
+    expect(registeredTools).toHaveLength(25);
     for (const name of expected) {
       expect(registeredTools).toContain(name);
     }

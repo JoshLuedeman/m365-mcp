@@ -1,7 +1,7 @@
 import type { Message, MailFolder, Recipient } from '@microsoft/microsoft-graph-types';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { acquireToken } from '../../auth/device-code-flow.js';
-import { getGraphClient } from '../../graph/client.js';
+import { getAccessToken } from '../../auth/index.js';
+import { getGraphClient, getApiBase } from '../../graph/client.js';
 import { collectAllPages } from '../../utils/pagination.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
 import { parseGraphError } from '../../utils/errors.js';
@@ -13,14 +13,20 @@ interface SearchEmailsParams {
   endDate?: string;
   folder?: string;
   top?: number;
+  mailbox?: string;
 }
 
 export async function handleSearchEmails(params: SearchEmailsParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
-    const folderSegment = params.folder !== undefined ? `/me/mailFolders/${params.folder}/messages` : '/me/messages';
+    const folderSegment =
+      params.folder !== undefined
+        ? `${base}/mailFolders/${params.folder}/messages`
+        : `${base}/messages`;
+
     let request = client.api(folderSegment);
 
     if (params.query !== undefined) {
@@ -54,12 +60,13 @@ export async function handleSearchEmails(params: SearchEmailsParams): Promise<Ca
   }
 }
 
-export async function handleReadEmail(messageId: string): Promise<CallToolResult> {
+export async function handleReadEmail(messageId: string, mailbox?: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(mailbox);
     const message = await client
-      .api(`/me/messages/${messageId}`)
+      .api(`${base}/messages/${messageId}`)
       .select('id,subject,from,toRecipients,ccRecipients,receivedDateTime,body,isRead,flag,hasAttachments')
       .get() as Message;
     return formatResponse(message);
@@ -75,6 +82,7 @@ interface SendEmailParams {
   cc?: string[];
   bcc?: string[];
   contentType?: 'text' | 'html';
+  mailbox?: string;
 }
 
 function toRecipients(emails: string[]): Recipient[] {
@@ -83,8 +91,9 @@ function toRecipients(emails: string[]): Recipient[] {
 
 export async function handleSendEmail(params: SendEmailParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
     const contentType = params.contentType ?? 'text';
 
@@ -98,7 +107,7 @@ export async function handleSendEmail(params: SendEmailParams): Promise<CallTool
       },
     };
 
-    await client.api('/me/sendMail').post(message);
+    await client.api(`${base}/sendMail`).post(message);
     return formatResponse({ sent: true, subject: params.subject });
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -108,12 +117,14 @@ export async function handleSendEmail(params: SendEmailParams): Promise<CallTool
 export async function handleFlagEmail(
   messageId: string,
   flagStatus: 'flagged' | 'complete' | 'notFlagged',
+  mailbox?: string,
 ): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(mailbox);
     const updated = await client
-      .api(`/me/messages/${messageId}`)
+      .api(`${base}/messages/${messageId}`)
       .patch({ flag: { flagStatus } }) as Message;
     return formatResponse(updated);
   } catch (err) {
@@ -121,11 +132,12 @@ export async function handleFlagEmail(
   }
 }
 
-export async function handleListMailFolders(): Promise<CallToolResult> {
+export async function handleListMailFolders(mailbox?: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
-    const folders = await collectAllPages<MailFolder>(client, '/me/mailFolders');
+    const base = getApiBase(mailbox);
+    const folders = await collectAllPages<MailFolder>(client, `${base}/mailFolders`);
     return formatResponse(folders);
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -135,14 +147,122 @@ export async function handleListMailFolders(): Promise<CallToolResult> {
 export async function handleMoveEmail(
   messageId: string,
   destinationFolderId: string,
+  mailbox?: string,
 ): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(mailbox);
     const moved = await client
-      .api(`/me/messages/${messageId}/move`)
+      .api(`${base}/messages/${messageId}/move`)
       .post({ destinationId: destinationFolderId }) as Message;
     return formatResponse(moved);
+  } catch (err) {
+    return formatError(parseGraphError(err));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// NEW TOOLS
+// ---------------------------------------------------------------------------
+
+interface ReplyEmailParams {
+  messageId: string;
+  body: string;
+  contentType?: 'text' | 'html';
+  replyAll?: boolean;
+  mailbox?: string;
+}
+
+/**
+ * Replies to an email message. Uses Graph reply/replyAll endpoints.
+ * The `comment` field is used for plain-text inline replies.
+ * For rich-body replies, `message.body` can be set alongside the comment.
+ */
+export async function handleReplyEmail(params: ReplyEmailParams): Promise<CallToolResult> {
+  try {
+    const token = await getAccessToken();
+    const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
+
+    const action = params.replyAll === true ? 'replyAll' : 'reply';
+    const contentType = params.contentType ?? 'text';
+
+    // Graph supports `comment` for simple text replies.
+    // For html or structured body, embed in the message object.
+    const payload =
+      contentType === 'text'
+        ? { comment: params.body }
+        : {
+            comment: '',
+            message: {
+              body: { contentType, content: params.body },
+            },
+          };
+
+    await client.api(`${base}/messages/${params.messageId}/${action}`).post(payload);
+
+    return formatResponse({ replied: true, messageId: params.messageId, replyAll: params.replyAll ?? false });
+  } catch (err) {
+    return formatError(parseGraphError(err));
+  }
+}
+
+interface DeleteEmailParams {
+  messageId: string;
+  permanent?: boolean;
+  mailbox?: string;
+}
+
+/**
+ * Deletes an email message.
+ * - permanent=false (default): moves to Deleted Items folder (recoverable)
+ * - permanent=true: hard-deletes via DELETE (unrecoverable)
+ */
+export async function handleDeleteEmail(params: DeleteEmailParams): Promise<CallToolResult> {
+  try {
+    const token = await getAccessToken();
+    const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
+
+    if (params.permanent === true) {
+      await client.api(`${base}/messages/${params.messageId}`).delete();
+      return formatResponse({ deleted: true, permanent: true, messageId: params.messageId });
+    }
+
+    // Soft delete: move to Deleted Items. 'deleteditems' is a well-known folder name.
+    const moved = await client
+      .api(`${base}/messages/${params.messageId}/move`)
+      .post({ destinationId: 'deleteditems' }) as Message;
+
+    return formatResponse({ deleted: true, permanent: false, messageId: params.messageId, movedTo: 'deleteditems', message: moved });
+  } catch (err) {
+    return formatError(parseGraphError(err));
+  }
+}
+
+interface MarkReadParams {
+  messageId: string;
+  isRead?: boolean;
+  mailbox?: string;
+}
+
+/**
+ * Marks an email message as read or unread.
+ */
+export async function handleMarkRead(params: MarkReadParams): Promise<CallToolResult> {
+  try {
+    const token = await getAccessToken();
+    const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
+
+    const isRead = params.isRead ?? true;
+
+    const updated = await client
+      .api(`${base}/messages/${params.messageId}`)
+      .patch({ isRead }) as Message;
+
+    return formatResponse(updated);
   } catch (err) {
     return formatError(parseGraphError(err));
   }

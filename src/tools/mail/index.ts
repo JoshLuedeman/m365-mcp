@@ -5,6 +5,9 @@ import {
   SendEmailSchema,
   FlagEmailSchema,
   MoveEmailSchema,
+  ReplyEmailSchema,
+  DeleteEmailSchema,
+  MarkReadSchema,
 } from './schemas.js';
 import {
   handleSearchEmails,
@@ -13,6 +16,9 @@ import {
   handleFlagEmail,
   handleListMailFolders,
   handleMoveEmail,
+  handleReplyEmail,
+  handleDeleteEmail,
+  handleMarkRead,
 } from './handlers.js';
 
 export function register(server: McpServer): void {
@@ -27,7 +33,7 @@ export function register(server: McpServer): void {
     'read_email',
     'Read the full content of an email message by ID',
     ReadEmailSchema,
-    async ({ messageId }) => handleReadEmail(messageId),
+    async ({ messageId, mailbox }) => handleReadEmail(messageId, mailbox),
   );
 
   server.tool(
@@ -41,21 +47,42 @@ export function register(server: McpServer): void {
     'flag_email',
     'Set the flag status on an email (flagged, complete, or notFlagged)',
     FlagEmailSchema,
-    async ({ messageId, flagStatus }) => handleFlagEmail(messageId, flagStatus),
+    async ({ messageId, flagStatus, mailbox }) => handleFlagEmail(messageId, flagStatus, mailbox),
   );
 
   server.tool(
     'list_mail_folders',
     'List all mail folders for the signed-in user',
-    {},
-    async () => handleListMailFolders(),
+    { mailbox: SearchEmailsSchema.mailbox },
+    async ({ mailbox }) => handleListMailFolders(mailbox),
   );
 
   server.tool(
     'move_email',
     'Move an email to a different mail folder',
     MoveEmailSchema,
-    async ({ messageId, destinationFolderId }) =>
-      handleMoveEmail(messageId, destinationFolderId),
+    async ({ messageId, destinationFolderId, mailbox }) =>
+      handleMoveEmail(messageId, destinationFolderId, mailbox),
+  );
+
+  server.tool(
+    'reply_email',
+    'Reply to an email message (or reply-all)',
+    ReplyEmailSchema,
+    async (params) => handleReplyEmail(params),
+  );
+
+  server.tool(
+    'delete_email',
+    'Delete an email (soft delete to Deleted Items, or permanent hard delete)',
+    DeleteEmailSchema,
+    async (params) => handleDeleteEmail(params),
+  );
+
+  server.tool(
+    'mark_read',
+    'Mark an email as read or unread',
+    MarkReadSchema,
+    async (params) => handleMarkRead(params),
   );
 }

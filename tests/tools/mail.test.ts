@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/auth/device-code-flow.js', () => ({
-  acquireToken: vi.fn().mockResolvedValue('mock-token'),
+// ---------------------------------------------------------------------------
+// Updated mock: handlers now use the unified auth entry point
+// ---------------------------------------------------------------------------
+vi.mock('../../src/auth/index.js', () => ({
+  getAccessToken: vi.fn().mockResolvedValue('mock-token'),
 }));
 
 vi.mock('../../src/graph/client.js', () => ({
   getGraphClient: vi.fn(),
+  getApiBase: vi.fn((mailbox?: string) => (mailbox ? `/users/${mailbox}` : '/me')),
 }));
 
-import { getGraphClient } from '../../src/graph/client.js';
+import { getGraphClient, getApiBase } from '../../src/graph/client.js';
 import {
   handleSearchEmails,
   handleReadEmail,
@@ -16,6 +20,9 @@ import {
   handleFlagEmail,
   handleListMailFolders,
   handleMoveEmail,
+  handleReplyEmail,
+  handleDeleteEmail,
+  handleMarkRead,
 } from '../../src/tools/mail/handlers.js';
 
 // ---------------------------------------------------------------------------
@@ -122,6 +129,27 @@ describe('handleSearchEmails', () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('403');
   });
+
+  // --- mailbox routing ---
+  it('uses /users/{mailbox}/messages when mailbox is provided', async () => {
+    const { client } = makeClient({ get: { value: [] } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleSearchEmails({ mailbox: 'user@example.com' });
+
+    expect(getApiBase).toHaveBeenCalledWith('user@example.com');
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/messages');
+  });
+
+  it('uses /me/ when no mailbox is provided', async () => {
+    const { client } = makeClient({ get: { value: [] } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    await handleSearchEmails({});
+
+    expect(getApiBase).toHaveBeenCalledWith(undefined);
+    expect(client.api).toHaveBeenCalledWith('/me/messages');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -141,12 +169,22 @@ describe('handleReadEmail', () => {
     expect(JSON.parse(result.content[0].text as string)).toEqual(message);
   });
 
-  it('calls the correct endpoint', async () => {
+  it('calls the correct endpoint without mailbox', async () => {
     const { client } = makeClient({ get: { id: 'm1' } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
 
     await handleReadEmail('message-abc');
 
     expect(client.api).toHaveBeenCalledWith('/me/messages/message-abc');
+  });
+
+  it('calls /users/{mailbox}/messages/{id} when mailbox is provided', async () => {
+    const { client } = makeClient({ get: { id: 'm1' } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleReadEmail('message-abc', 'user@example.com');
+
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/messages/message-abc');
   });
 
   it('returns isError on 404', async () => {
@@ -167,7 +205,7 @@ describe('handleSendEmail', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns sent: true on success', async () => {
-    const { chain } = makeClient({ post: undefined });
+    makeClient({ post: undefined });
 
     const result = await handleSendEmail({
       to: ['recipient@example.com'],
@@ -180,12 +218,22 @@ describe('handleSendEmail', () => {
     expect(body).toEqual({ sent: true, subject: 'Test email' });
   });
 
-  it('sends to /me/sendMail', async () => {
+  it('sends to /me/sendMail by default', async () => {
     const { client } = makeClient({ post: undefined });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
 
     await handleSendEmail({ to: ['a@b.com'], subject: 'Hi', body: 'Body' });
 
     expect(client.api).toHaveBeenCalledWith('/me/sendMail');
+  });
+
+  it('sends to /users/{mailbox}/sendMail when mailbox provided', async () => {
+    const { client } = makeClient({ post: undefined });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleSendEmail({ to: ['a@b.com'], subject: 'Hi', body: 'Body', mailbox: 'user@example.com' });
+
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/sendMail');
   });
 
   it('includes cc and bcc when provided', async () => {
@@ -241,6 +289,7 @@ describe('handleFlagEmail', () => {
 
   it('calls the correct endpoint', async () => {
     const { client } = makeClient({ patch: {} });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
 
     await handleFlagEmail('message-xyz', 'notFlagged');
 
@@ -304,6 +353,7 @@ describe('handleMoveEmail', () => {
 
   it('calls the correct move endpoint', async () => {
     const { client } = makeClient({ post: {} });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
 
     await handleMoveEmail('message-abc', 'folder-xyz');
 
@@ -317,5 +367,214 @@ describe('handleMoveEmail', () => {
     const result = await handleMoveEmail('gone', 'folder');
 
     expect(result.isError).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleReplyEmail
+// ---------------------------------------------------------------------------
+
+describe('handleReplyEmail', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('calls the reply endpoint for a single reply', async () => {
+    const { client } = makeClient({ post: undefined });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    const result = await handleReplyEmail({ messageId: 'm1', body: 'Thanks!' });
+
+    expect(result.isError).toBeFalsy();
+    expect(client.api).toHaveBeenCalledWith('/me/messages/m1/reply');
+  });
+
+  it('calls the replyAll endpoint when replyAll=true', async () => {
+    const { client } = makeClient({ post: undefined });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    const result = await handleReplyEmail({ messageId: 'm2', body: 'All!', replyAll: true });
+
+    expect(result.isError).toBeFalsy();
+    expect(client.api).toHaveBeenCalledWith('/me/messages/m2/replyAll');
+  });
+
+  it('uses comment body for text replies', async () => {
+    const { chain } = makeClient({ post: undefined });
+
+    await handleReplyEmail({ messageId: 'm1', body: 'Hello', contentType: 'text' });
+
+    expect(chain.post).toHaveBeenCalledWith({ comment: 'Hello' });
+  });
+
+  it('uses message body for html replies', async () => {
+    const { chain } = makeClient({ post: undefined });
+
+    await handleReplyEmail({ messageId: 'm1', body: '<b>Hello</b>', contentType: 'html' });
+
+    const call = chain.post.mock.calls[0][0] as { comment: string; message: { body: { contentType: string; content: string } } };
+    expect(call.message.body.contentType).toBe('html');
+    expect(call.message.body.content).toBe('<b>Hello</b>');
+  });
+
+  it('routes to /users/{mailbox}/ when mailbox is provided', async () => {
+    const { client } = makeClient({ post: undefined });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleReplyEmail({ messageId: 'm3', body: 'Reply', mailbox: 'user@example.com' });
+
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/messages/m3/reply');
+  });
+
+  it('returns replied=true on success', async () => {
+    makeClient({ post: undefined });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    const result = await handleReplyEmail({ messageId: 'm1', body: 'OK' });
+
+    const body = JSON.parse(result.content[0].text as string);
+    expect(body.replied).toBe(true);
+    expect(body.messageId).toBe('m1');
+    expect(body.replyAll).toBe(false);
+  });
+
+  it('returns isError on Graph failure', async () => {
+    const { chain } = makeClient();
+    chain.post.mockRejectedValueOnce(makeGraphError(404, 'ItemNotFound', 'Not found'));
+
+    const result = await handleReplyEmail({ messageId: 'gone', body: 'Oops' });
+
+    expect(result.isError).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleDeleteEmail
+// ---------------------------------------------------------------------------
+
+describe('handleDeleteEmail', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('moves to deleteditems when permanent=false (default)', async () => {
+    const { client, chain } = makeClient({ post: { id: 'moved-m1' } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    const result = await handleDeleteEmail({ messageId: 'm1' });
+
+    expect(result.isError).toBeFalsy();
+    expect(client.api).toHaveBeenCalledWith('/me/messages/m1/move');
+    expect(chain.post).toHaveBeenCalledWith({ destinationId: 'deleteditems' });
+
+    const body = JSON.parse(result.content[0].text as string);
+    expect(body.deleted).toBe(true);
+    expect(body.permanent).toBe(false);
+    expect(body.movedTo).toBe('deleteditems');
+  });
+
+  it('hard-deletes when permanent=true', async () => {
+    const { client, chain } = makeClient();
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    const result = await handleDeleteEmail({ messageId: 'm1', permanent: true });
+
+    expect(result.isError).toBeFalsy();
+    expect(client.api).toHaveBeenCalledWith('/me/messages/m1');
+    expect(chain.delete).toHaveBeenCalledOnce();
+
+    const body = JSON.parse(result.content[0].text as string);
+    expect(body.permanent).toBe(true);
+  });
+
+  it('routes to /users/{mailbox}/ when mailbox is provided', async () => {
+    const { client } = makeClient({ post: {} });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleDeleteEmail({ messageId: 'm1', mailbox: 'user@example.com' });
+
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/messages/m1/move');
+  });
+
+  it('returns isError on Graph failure (soft delete)', async () => {
+    const { chain } = makeClient();
+    chain.post.mockRejectedValueOnce(makeGraphError(404, 'ItemNotFound', 'Not found'));
+
+    const result = await handleDeleteEmail({ messageId: 'gone' });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it('returns isError on Graph failure (permanent delete)', async () => {
+    const { chain } = makeClient();
+    chain.delete.mockRejectedValueOnce(makeGraphError(403, 'AccessDenied', 'Forbidden'));
+
+    const result = await handleDeleteEmail({ messageId: 'm1', permanent: true });
+
+    expect(result.isError).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleMarkRead
+// ---------------------------------------------------------------------------
+
+describe('handleMarkRead', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('marks email as read (default)', async () => {
+    const { client, chain } = makeClient({ patch: { id: 'm1', isRead: true } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    const result = await handleMarkRead({ messageId: 'm1' });
+
+    expect(result.isError).toBeFalsy();
+    expect(client.api).toHaveBeenCalledWith('/me/messages/m1');
+    expect(chain.patch).toHaveBeenCalledWith({ isRead: true });
+  });
+
+  it('marks email as unread when isRead=false', async () => {
+    const { chain } = makeClient({ patch: { id: 'm1', isRead: false } });
+
+    await handleMarkRead({ messageId: 'm1', isRead: false });
+
+    expect(chain.patch).toHaveBeenCalledWith({ isRead: false });
+  });
+
+  it('marks email as read when isRead=true explicitly', async () => {
+    const { chain } = makeClient({ patch: { id: 'm1', isRead: true } });
+
+    await handleMarkRead({ messageId: 'm1', isRead: true });
+
+    expect(chain.patch).toHaveBeenCalledWith({ isRead: true });
+  });
+
+  it('routes to /users/{mailbox}/ when mailbox is provided', async () => {
+    const { client } = makeClient({ patch: {} });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleMarkRead({ messageId: 'm1', mailbox: 'user@example.com' });
+
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/messages/m1');
+  });
+
+  it('returns isError on Graph failure', async () => {
+    const { chain } = makeClient();
+    chain.patch.mockRejectedValueOnce(makeGraphError(404, 'ItemNotFound', 'Not found'));
+
+    const result = await handleMarkRead({ messageId: 'gone' });
+
+    expect(result.isError).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getApiBase helper (mocked behavior verification)
+// ---------------------------------------------------------------------------
+
+describe('getApiBase (via graph/client mock)', () => {
+  it('returns /me when no mailbox', () => {
+    // Our vi.mock at the top defines getApiBase as: (mailbox?) => mailbox ? `/users/${mailbox}` : '/me'
+    expect(getApiBase(undefined)).toBe('/me');
+  });
+
+  it('returns /users/{mailbox} when mailbox is provided', () => {
+    expect(getApiBase('user@example.com')).toBe('/users/user@example.com');
   });
 });

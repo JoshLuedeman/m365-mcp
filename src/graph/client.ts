@@ -12,3 +12,18 @@ export function getGraphClient(accessToken: string): Client {
 
   return Client.initWithMiddleware({ authProvider });
 }
+
+/**
+ * Returns the Graph API base path for a given mailbox.
+ *
+ * - No mailbox: returns '/me' (device code / delegated, single signed-in user)
+ * - With mailbox: returns '/users/{mailbox}' (app-only / client credentials, multi-mailbox)
+ *
+ * Append resource segments directly: `${getApiBase(mailbox)}/messages`
+ */
+export function getApiBase(mailbox?: string): string {
+  if (mailbox !== undefined && mailbox.trim() !== '') {
+    return `/users/${mailbox.trim()}`;
+  }
+  return '/me';
+}

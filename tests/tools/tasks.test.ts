@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/auth/device-code-flow.js', () => ({
-  acquireToken: vi.fn().mockResolvedValue('mock-token'),
+vi.mock('../../src/auth/index.js', () => ({
+  getAccessToken: vi.fn().mockResolvedValue('mock-token'),
 }));
 
 vi.mock('../../src/graph/client.js', () => ({

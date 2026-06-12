@@ -1,6 +1,6 @@
 import type { TodoTask, TodoTaskList } from '@microsoft/microsoft-graph-types';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { acquireToken } from '../../auth/device-code-flow.js';
+import { getAccessToken } from '../../auth/index.js';
 import { getGraphClient } from '../../graph/client.js';
 import { collectAllPages } from '../../utils/pagination.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
@@ -8,7 +8,7 @@ import { parseGraphError } from '../../utils/errors.js';
 
 export async function handleListTaskLists(): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
     const lists = await collectAllPages<TodoTaskList>(client, '/me/todo/lists');
     return formatResponse(lists);
@@ -23,7 +23,7 @@ export async function handleListTasks(
   top?: number,
 ): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     let request = client.api(`/me/todo/lists/${listId}/tasks`);
@@ -54,7 +54,7 @@ export async function handleListTasks(
 
 export async function handleGetTask(listId: string, taskId: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
     const task = await client.api(`/me/todo/lists/${listId}/tasks/${taskId}`).get() as TodoTask;
     return formatResponse(task);
@@ -73,7 +73,7 @@ interface CreateTaskParams {
 
 export async function handleCreateTask(params: CreateTaskParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const body: Partial<TodoTask> = {
@@ -113,7 +113,7 @@ interface UpdateTaskParams {
 
 export async function handleUpdateTask(params: UpdateTaskParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const patch: Partial<TodoTask> = {};
@@ -137,7 +137,7 @@ export async function handleUpdateTask(params: UpdateTaskParams): Promise<CallTo
 
 export async function handleCompleteTask(listId: string, taskId: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
     const updated = await client
       .api(`/me/todo/lists/${listId}/tasks/${taskId}`)
@@ -150,7 +150,7 @@ export async function handleCompleteTask(listId: string, taskId: string): Promis
 
 export async function handleDeleteTask(listId: string, taskId: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
     await client.api(`/me/todo/lists/${listId}/tasks/${taskId}`).delete();
     return formatResponse({ deleted: true, taskId });

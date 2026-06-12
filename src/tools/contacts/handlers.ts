@@ -1,6 +1,6 @@
 import type { Contact } from '@microsoft/microsoft-graph-types';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { acquireToken } from '../../auth/device-code-flow.js';
+import { getAccessToken } from '../../auth/index.js';
 import { getGraphClient } from '../../graph/client.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
 import { parseGraphError } from '../../utils/errors.js';
@@ -15,7 +15,7 @@ export async function handleSearchContacts(
   top?: number,
 ): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     let request = client
@@ -36,7 +36,7 @@ export async function handleSearchContacts(
 
 export async function handleGetContact(contactId: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
     const contact = await client
       .api(`/me/contacts/${contactId}`)
@@ -58,7 +58,7 @@ interface CreateContactParams {
 
 export async function handleCreateContact(params: CreateContactParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const body: Partial<Contact> = {
@@ -90,7 +90,7 @@ interface UpdateContactParams {
 
 export async function handleUpdateContact(params: UpdateContactParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const patch: Partial<Contact> = {};

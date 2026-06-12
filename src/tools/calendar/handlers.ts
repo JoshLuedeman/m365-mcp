@@ -1,6 +1,6 @@
 import type { Event } from '@microsoft/microsoft-graph-types';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { acquireToken } from '../../auth/device-code-flow.js';
+import { getAccessToken } from '../../auth/index.js';
 import { getGraphClient } from '../../graph/client.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
 import { parseGraphError } from '../../utils/errors.js';
@@ -22,7 +22,7 @@ export async function handleSearchEvents(
   top?: number,
 ): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     let request = client.api('/me/events');
@@ -57,7 +57,7 @@ export async function handleSearchEvents(
 
 export async function handleGetEvent(eventId: string): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
     const event = await client.api(`/me/events/${eventId}`).get() as Event;
     return formatResponse(event);
@@ -79,7 +79,7 @@ interface CreateEventParams {
 
 export async function handleCreateEvent(params: CreateEventParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const tz = params.timeZone ?? 'UTC';
@@ -129,7 +129,7 @@ interface UpdateEventParams {
 
 export async function handleUpdateEvent(params: UpdateEventParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const patch: Partial<Event> = {};
@@ -176,7 +176,7 @@ interface FindAvailabilityParams {
 
 export async function handleFindAvailability(params: FindAvailabilityParams): Promise<CallToolResult> {
   try {
-    const token = await acquireToken();
+    const token = await getAccessToken();
     const client = getGraphClient(token);
 
     const tz = params.timeZone ?? 'UTC';
