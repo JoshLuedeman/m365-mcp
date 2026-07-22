@@ -1,0 +1,52 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    name: Copilot Setup Steps
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        continue-on-error: true
+
+      - name: Install hve-core-all plugin
+        run: bash .devcontainer/setup-hve-core.sh
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Verify tools
+        run: |
+          echo "Node: $(node --version)"
+          echo "npm:  $(npm --version)"
+          if command -v copilot >/dev/null 2>&1; then
+            echo "copilot: $(copilot --version 2>/dev/null || echo installed)"
+            copilot plugin list || true
+          else
+            echo "copilot: not installed"
+          fi
