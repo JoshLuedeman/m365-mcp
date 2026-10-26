@@ -19,11 +19,34 @@ export function getGraphClient(accessToken: string): Client {
  * - No mailbox: returns '/me' (device code / delegated, single signed-in user)
  * - With mailbox: returns '/users/{mailbox}' (app-only / client credentials, multi-mailbox)
  *
+ * When the M365_ALLOWED_MAILBOX environment variable is set, this process is
+ * hard-restricted to that single mailbox: any caller-supplied `mailbox` value
+ * that does not exactly match it is rejected, and every call (even one that
+ * omits `mailbox` entirely) is routed to the allowed mailbox instead of `/me`.
+ * This is the sole enforcement point for per-process mailbox scoping across
+ * every tool category (Mail, Calendar, Tasks, Contacts, and any future
+ * category that resolves its mailbox through this function) — do not
+ * duplicate this check elsewhere; route every new category through
+ * getApiBase() instead.
+ *
  * Append resource segments directly: `${getApiBase(mailbox)}/messages`
  */
 export function getApiBase(mailbox?: string): string {
-  if (mailbox !== undefined && mailbox.trim() !== '') {
-    return `/users/${mailbox.trim()}`;
+  const allowed = process.env['M365_ALLOWED_MAILBOX'];
+  const requested = mailbox?.trim();
+
+  if (allowed !== undefined && allowed.trim() !== '') {
+    const allowedTrimmed = allowed.trim();
+    if (requested !== undefined && requested !== '' && requested !== allowedTrimmed) {
+      throw new Error(
+        `[m365-mcp] mailbox override rejected: this process is restricted to ${allowedTrimmed}`,
+      );
+    }
+    return `/users/${allowedTrimmed}`;
+  }
+
+  if (requested !== undefined && requested !== '') {
+    return `/users/${requested}`;
   }
   return '/me';
 }
