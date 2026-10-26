@@ -6,6 +6,7 @@ vi.mock('../../src/auth/index.js', () => ({
 
 vi.mock('../../src/graph/client.js', () => ({
   getGraphClient: vi.fn(),
+  getApiBase: vi.fn((mailbox?: string) => (mailbox ? `/users/${mailbox}` : '/me')),
 }));
 
 import { getGraphClient } from '../../src/graph/client.js';

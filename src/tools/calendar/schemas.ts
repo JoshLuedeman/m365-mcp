@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+const mailboxField = z
+  .string()
+  .optional()
+  .describe(
+    'Mailbox UPN or object ID (e.g. user@domain.com). Required for client_credentials auth; omit for device_code auth.',
+  );
+
 export const SearchEventsSchema = {
   query: z.string().optional().describe('Search query string for event subject/content'),
   startDate: z
@@ -17,10 +24,12 @@ export const SearchEventsSchema = {
     .max(100)
     .optional()
     .describe('Maximum number of events to return (1-100)'),
+  mailbox: mailboxField,
 };
 
 export const GetEventSchema = {
   eventId: z.string().describe('The ID of the calendar event'),
+  mailbox: mailboxField,
 };
 
 export const CreateEventSchema = {
@@ -44,6 +53,7 @@ export const CreateEventSchema = {
     .boolean()
     .optional()
     .describe('If true, create a Teams online meeting link'),
+  mailbox: mailboxField,
 };
 
 export const UpdateEventSchema = {
@@ -55,6 +65,7 @@ export const UpdateEventSchema = {
   attendees: z.array(z.string()).optional().describe('Updated list of attendee email addresses'),
   body: z.string().optional().describe('Updated event body'),
   location: z.string().optional().describe('Updated event location'),
+  mailbox: mailboxField,
 };
 
 export const FindAvailabilitySchema = {
@@ -78,4 +89,5 @@ export const FindAvailabilitySchema = {
     .optional()
     .default(30)
     .describe('Schedule slot interval in minutes (default: 30)'),
+  mailbox: mailboxField,
 };

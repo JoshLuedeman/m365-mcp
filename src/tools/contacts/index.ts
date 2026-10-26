@@ -17,14 +17,14 @@ export function register(server: McpServer): void {
     'search_contacts',
     'Search contacts by name, email, company, or other fields',
     SearchContactsSchema,
-    async ({ query, top }) => handleSearchContacts(query, top),
+    async ({ query, top, mailbox }) => handleSearchContacts(query, top, mailbox),
   );
 
   server.tool(
     'get_contact',
     'Get a single contact by ID',
     GetContactSchema,
-    async ({ contactId }) => handleGetContact(contactId),
+    async ({ contactId, mailbox }) => handleGetContact(contactId, mailbox),
   );
 
   server.tool(

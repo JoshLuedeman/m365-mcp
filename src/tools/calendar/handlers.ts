@@ -1,7 +1,7 @@
 import type { Event } from '@microsoft/microsoft-graph-types';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { getAccessToken } from '../../auth/index.js';
-import { getGraphClient } from '../../graph/client.js';
+import { getGraphClient, getApiBase } from '../../graph/client.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
 import { parseGraphError } from '../../utils/errors.js';
 
@@ -20,12 +20,14 @@ export async function handleSearchEvents(
   startDate?: string,
   endDate?: string,
   top?: number,
+  mailbox?: string,
 ): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(mailbox);
 
-    let request = client.api('/me/events');
+    let request = client.api(`${base}/events`);
 
     if (query !== undefined) {
       request = request.search(`"${query}"`);
@@ -55,11 +57,12 @@ export async function handleSearchEvents(
   }
 }
 
-export async function handleGetEvent(eventId: string): Promise<CallToolResult> {
+export async function handleGetEvent(eventId: string, mailbox?: string): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
-    const event = await client.api(`/me/events/${eventId}`).get() as Event;
+    const base = getApiBase(mailbox);
+    const event = await client.api(`${base}/events/${eventId}`).get() as Event;
     return formatResponse(event);
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -75,12 +78,14 @@ interface CreateEventParams {
   body?: string;
   location?: string;
   isTeamsMeeting?: boolean;
+  mailbox?: string;
 }
 
 export async function handleCreateEvent(params: CreateEventParams): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
     const tz = params.timeZone ?? 'UTC';
 
@@ -109,7 +114,7 @@ export async function handleCreateEvent(params: CreateEventParams): Promise<Call
       eventBody.isOnlineMeeting = true;
     }
 
-    const created = await client.api('/me/events').post(eventBody) as Event;
+    const created = await client.api(`${base}/events`).post(eventBody) as Event;
     return formatResponse(created);
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -125,12 +130,14 @@ interface UpdateEventParams {
   attendees?: string[];
   body?: string;
   location?: string;
+  mailbox?: string;
 }
 
 export async function handleUpdateEvent(params: UpdateEventParams): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
     const patch: Partial<Event> = {};
     const tz = params.timeZone ?? 'UTC';
@@ -147,7 +154,7 @@ export async function handleUpdateEvent(params: UpdateEventParams): Promise<Call
       }));
     }
 
-    const updated = await client.api(`/me/events/${params.eventId}`).patch(patch) as Event;
+    const updated = await client.api(`${base}/events/${params.eventId}`).patch(patch) as Event;
     return formatResponse(updated);
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -172,12 +179,14 @@ interface FindAvailabilityParams {
   endTime: string;
   timeZone?: string;
   intervalMinutes?: number;
+  mailbox?: string;
 }
 
 export async function handleFindAvailability(params: FindAvailabilityParams): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
     const tz = params.timeZone ?? 'UTC';
     const interval = params.intervalMinutes ?? 30;
@@ -190,7 +199,7 @@ export async function handleFindAvailability(params: FindAvailabilityParams): Pr
     };
 
     const response = await client
-      .api('/me/calendar/getSchedule')
+      .api(`${base}/calendar/getSchedule`)
       .post(requestBody) as GetScheduleResponse;
 
     return formatResponse(response.value ?? []);

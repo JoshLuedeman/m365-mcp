@@ -61,11 +61,47 @@ describe('createServer', () => {
       'get_contact',
       'create_contact',
       'update_contact',
+      // OneDrive
+      'list_files',
+      'get_file',
+      'search_files',
+      'read_file_content',
+      'create_folder',
+      'delete_file',
+      'move_file',
+      'create_sharing_link',
+      // Teams (read-only)
+      'list_joined_teams',
+      'list_channels',
+      'list_channel_messages',
+      'list_chats',
+      'list_chat_messages',
+      // Users
+      'list_users',
+      'search_users',
+      'get_user',
+      // Planner (prefixed to avoid colliding with Tasks' list_tasks/get_task/etc.)
+      'list_plans',
+      'list_buckets',
+      'list_plan_tasks',
+      'get_plan_task',
+      'get_plan_task_details',
+      'create_plan_task',
+      'update_plan_task',
     ];
 
-    expect(registeredTools).toHaveLength(26);
+    expect(registeredTools).toHaveLength(49);
     for (const name of expected) {
       expect(registeredTools).toContain(name);
     }
+
+    // Confirm there are no duplicate tool *** across categories — this is
+    // exactly the class of bug (Planner/Tasks name collision) that crashed
+    // the real server at startup before being caught; a stale test that
+    // merely asserts length+membership would NOT have caught the collision
+    // itself, since duplicates still satisfy both of those. This explicit
+    // uniqueness check is the actual regression guard.
+    const uniqueNames = new Set(registeredTools);
+    expect(uniqueNames.size).toBe(registeredTools.length);
   });
 });
