@@ -19,15 +19,15 @@ export function register(server: McpServer): void {
     'search_events',
     'Search calendar events by query, date range, or both',
     SearchEventsSchema,
-    async ({ query, startDate, endDate, top }) =>
-      handleSearchEvents(query, startDate, endDate, top),
+    async ({ query, startDate, endDate, top, mailbox }) =>
+      handleSearchEvents(query, startDate, endDate, top, mailbox),
   );
 
   server.tool(
     'get_event',
     'Get a single calendar event by ID',
     GetEventSchema,
-    async ({ eventId }) => handleGetEvent(eventId),
+    async ({ eventId, mailbox }) => handleGetEvent(eventId, mailbox),
   );
 
   server.tool(

@@ -1,16 +1,17 @@
 import type { TodoTask, TodoTaskList } from '@microsoft/microsoft-graph-types';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { getAccessToken } from '../../auth/index.js';
-import { getGraphClient } from '../../graph/client.js';
+import { getGraphClient, getApiBase } from '../../graph/client.js';
 import { collectAllPages } from '../../utils/pagination.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
 import { parseGraphError } from '../../utils/errors.js';
 
-export async function handleListTaskLists(): Promise<CallToolResult> {
+export async function handleListTaskLists(mailbox?: string): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
-    const lists = await collectAllPages<TodoTaskList>(client, '/me/todo/lists');
+    const base = getApiBase(mailbox);
+    const lists = await collectAllPages<TodoTaskList>(client, `${base}/todo/lists`);
     return formatResponse(lists);
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -21,12 +22,14 @@ export async function handleListTasks(
   listId: string,
   filter?: string,
   top?: number,
+  mailbox?: string,
 ): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(mailbox);
 
-    let request = client.api(`/me/todo/lists/${listId}/tasks`);
+    let request = client.api(`${base}/todo/lists/${listId}/tasks`);
     if (filter !== undefined) {
       request = request.filter(filter);
     }
@@ -52,11 +55,12 @@ export async function handleListTasks(
   }
 }
 
-export async function handleGetTask(listId: string, taskId: string): Promise<CallToolResult> {
+export async function handleGetTask(listId: string, taskId: string, mailbox?: string): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
-    const task = await client.api(`/me/todo/lists/${listId}/tasks/${taskId}`).get() as TodoTask;
+    const base = getApiBase(mailbox);
+    const task = await client.api(`${base}/todo/lists/${listId}/tasks/${taskId}`).get() as TodoTask;
     return formatResponse(task);
   } catch (err) {
     return formatError(parseGraphError(err));
@@ -69,12 +73,14 @@ interface CreateTaskParams {
   body?: string;
   dueDate?: string;
   importance?: 'low' | 'normal' | 'high';
+  mailbox?: string;
 }
 
 export async function handleCreateTask(params: CreateTaskParams): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
     const body: Partial<TodoTask> = {
       title: params.title,
@@ -93,7 +99,7 @@ export async function handleCreateTask(params: CreateTaskParams): Promise<CallTo
     }
 
     const created = await client
-      .api(`/me/todo/lists/${params.listId}/tasks`)
+      .api(`${base}/todo/lists/${params.listId}/tasks`)
       .post(body) as TodoTask;
 
     return formatResponse(created);
@@ -109,12 +115,14 @@ interface UpdateTaskParams {
   body?: string;
   dueDate?: string;
   importance?: 'low' | 'normal' | 'high';
+  mailbox?: string;
 }
 
 export async function handleUpdateTask(params: UpdateTaskParams): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
 
     const patch: Partial<TodoTask> = {};
 
@@ -126,7 +134,7 @@ export async function handleUpdateTask(params: UpdateTaskParams): Promise<CallTo
     if (params.importance !== undefined) patch.importance = params.importance;
 
     const updated = await client
-      .api(`/me/todo/lists/${params.listId}/tasks/${params.taskId}`)
+      .api(`${base}/todo/lists/${params.listId}/tasks/${params.taskId}`)
       .patch(patch) as TodoTask;
 
     return formatResponse(updated);
@@ -135,12 +143,13 @@ export async function handleUpdateTask(params: UpdateTaskParams): Promise<CallTo
   }
 }
 
-export async function handleCompleteTask(listId: string, taskId: string): Promise<CallToolResult> {
+export async function handleCompleteTask(listId: string, taskId: string, mailbox?: string): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
+    const base = getApiBase(mailbox);
     const updated = await client
-      .api(`/me/todo/lists/${listId}/tasks/${taskId}`)
+      .api(`${base}/todo/lists/${listId}/tasks/${taskId}`)
       .patch({ status: 'completed' }) as TodoTask;
     return formatResponse(updated);
   } catch (err) {
@@ -148,11 +157,12 @@ export async function handleCompleteTask(listId: string, taskId: string): Promis
   }
 }
 
-export async function handleDeleteTask(listId: string, taskId: string): Promise<CallToolResult> {
+export async function handleDeleteTask(listId: string, taskId: string, mailbox?: string): Promise<CallToolResult> {
   try {
     const token = await getAccessToken();
     const client = getGraphClient(token);
-    await client.api(`/me/todo/lists/${listId}/tasks/${taskId}`).delete();
+    const base = getApiBase(mailbox);
+    await client.api(`${base}/todo/lists/${listId}/tasks/${taskId}`).delete();
     return formatResponse({ deleted: true, taskId });
   } catch (err) {
     return formatError(parseGraphError(err));

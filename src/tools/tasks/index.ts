@@ -21,22 +21,22 @@ export function register(server: McpServer): void {
   server.tool(
     'list_task_lists',
     'List all Microsoft To Do task lists for the signed-in user',
-    {},
-    async () => handleListTaskLists(),
+    { mailbox: ListTasksSchema.mailbox },
+    async ({ mailbox }) => handleListTaskLists(mailbox),
   );
 
   server.tool(
     'list_tasks',
     'List tasks in a specific To Do task list, with optional filter and limit',
     ListTasksSchema,
-    async ({ listId, filter, top }) => handleListTasks(listId, filter, top),
+    async ({ listId, filter, top, mailbox }) => handleListTasks(listId, filter, top, mailbox),
   );
 
   server.tool(
     'get_task',
     'Get a single To Do task by list ID and task ID',
     GetTaskSchema,
-    async ({ listId, taskId }) => handleGetTask(listId, taskId),
+    async ({ listId, taskId, mailbox }) => handleGetTask(listId, taskId, mailbox),
   );
 
   server.tool(
@@ -57,13 +57,13 @@ export function register(server: McpServer): void {
     'complete_task',
     'Mark a To Do task as completed',
     CompleteTaskSchema,
-    async ({ listId, taskId }) => handleCompleteTask(listId, taskId),
+    async ({ listId, taskId, mailbox }) => handleCompleteTask(listId, taskId, mailbox),
   );
 
   server.tool(
     'delete_task',
     'Delete a To Do task permanently',
     DeleteTaskSchema,
-    async ({ listId, taskId }) => handleDeleteTask(listId, taskId),
+    async ({ listId, taskId, mailbox }) => handleDeleteTask(listId, taskId, mailbox),
   );
 }

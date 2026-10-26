@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+const mailboxField = z
+  .string()
+  .optional()
+  .describe(
+    'Mailbox UPN or object ID (e.g. user@domain.com). Required for client_credentials auth; omit for device_code auth.',
+  );
+
 const EmailAddressSchema = z.object({
   address: z.string().describe('Email address'),
   name: z.string().optional().describe('Display name for this email address'),
@@ -14,10 +21,12 @@ export const SearchContactsSchema = {
     .max(100)
     .optional()
     .describe('Maximum number of contacts to return (1-100)'),
+  mailbox: mailboxField,
 };
 
 export const GetContactSchema = {
   contactId: z.string().describe('The ID of the contact'),
+  mailbox: mailboxField,
 };
 
 export const CreateContactSchema = {
@@ -30,6 +39,7 @@ export const CreateContactSchema = {
   businessPhones: z.array(z.string()).optional().describe('Business phone numbers'),
   jobTitle: z.string().optional().describe('Job title'),
   companyName: z.string().optional().describe('Company or organization name'),
+  mailbox: mailboxField,
 };
 
 export const UpdateContactSchema = {
@@ -43,4 +53,5 @@ export const UpdateContactSchema = {
   businessPhones: z.array(z.string()).optional().describe('Updated business phone numbers'),
   jobTitle: z.string().optional().describe('Updated job title'),
   companyName: z.string().optional().describe('Updated company name'),
+  mailbox: mailboxField,
 };

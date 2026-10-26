@@ -61,9 +61,32 @@ describe('createServer', () => {
       'get_contact',
       'create_contact',
       'update_contact',
+      // OneDrive
+      'list_files',
+      'get_file',
+      'search_files',
+      'read_file_content',
+      'create_folder',
+      'delete_file',
+      'move_file',
+      'create_sharing_link',
+      // Teams (read-only)
+      'list_joined_teams',
+      'list_channels',
+      'list_channel_messages',
+      'list_chats',
+      'list_chat_messages',
+      // Users
+      'list_users',
+      'search_users',
+      'get_user',
+      // Planner
+      'list_plans',
+      'list_buckets',
+      'get_task_details',
     ];
 
-    expect(registeredTools).toHaveLength(26);
+    expect(registeredTools).toHaveLength(49);
     for (const name of expected) {
       expect(registeredTools).toContain(name);
     }
