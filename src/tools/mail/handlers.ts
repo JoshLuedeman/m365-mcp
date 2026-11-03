@@ -268,6 +268,54 @@ export async function handleMarkRead(params: MarkReadParams): Promise<CallToolRe
   }
 }
 
+interface CreateDraftParams {
+  to?: string[];
+  subject?: string;
+  body?: string;
+  cc?: string[];
+  bcc?: string[];
+  contentType?: 'text' | 'html';
+  mailbox?: string;
+}
+
+/**
+ * Creates a new draft message in the signed-in user's Drafts folder.
+ * Unlike handleSendEmail (which POSTs to /sendMail and never touches
+ * Drafts), this POSTs directly to /messages — Graph's documented way to
+ * create a draft: a message created this way lands in Drafts and is NOT
+ * sent until a separate explicit send action (e.g. PATCH-then-POST
+ * /messages/{id}/send) is taken. Every field is optional so a caller can
+ * create a blank draft and fill it in with follow-up edits if needed,
+ * matching Outlook's own "New email" blank-draft behavior.
+ */
+export async function handleCreateDraft(params: CreateDraftParams): Promise<CallToolResult> {
+  try {
+    const token = await getAccessToken();
+    const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
+
+    const contentType = params.contentType ?? 'text';
+
+    const draft: Record<string, unknown> = {};
+    if (params.subject !== undefined) draft.subject = params.subject;
+    if (params.body !== undefined) draft.body = { contentType, content: params.body };
+    if (params.to !== undefined) draft.toRecipients = toRecipients(params.to);
+    if (params.cc !== undefined) draft.ccRecipients = toRecipients(params.cc);
+    if (params.bcc !== undefined) draft.bccRecipients = toRecipients(params.bcc);
+
+    const created = await client.api(`${base}/messages`).post(draft) as Message;
+
+    return formatResponse({
+      created: true,
+      messageId: created.id,
+      subject: created.subject,
+      webLink: created.webLink,
+    });
+  } catch (err) {
+    return formatError(parseGraphError(err));
+  }
+}
+
 interface EnsureFolderParams {
   displayName: string;
   mailbox?: string;

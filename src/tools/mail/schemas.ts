@@ -116,3 +116,17 @@ export const MarkReadSchema = {
     .describe('True to mark as read (default), false to mark as unread'),
   mailbox: mailboxField,
 };
+
+export const CreateDraftSchema = {
+  to: z.array(z.string()).optional().describe('List of recipient email addresses'),
+  subject: z.string().optional().describe('Email subject'),
+  body: z.string().optional().describe('Email body content'),
+  cc: z.array(z.string()).optional().describe('CC recipient email addresses'),
+  bcc: z.array(z.string()).optional().describe('BCC recipient email addresses'),
+  contentType: z
+    .enum(['text', 'html'])
+    .optional()
+    .default('text')
+    .describe('Body content type (default: text)'),
+  mailbox: mailboxField,
+};

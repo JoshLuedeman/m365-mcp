@@ -24,6 +24,7 @@ import {
   handleDeleteEmail,
   handleMarkRead,
   handleEnsureFolder,
+  handleCreateDraft,
 } from '../../src/tools/mail/handlers.js';
 
 // ---------------------------------------------------------------------------
@@ -657,5 +658,107 @@ describe('handleEnsureFolder', () => {
 
     const result = await handleEnsureFolder({ displayName: 'Test' });
     expect(result.isError).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleCreateDraft
+// ---------------------------------------------------------------------------
+
+describe('handleCreateDraft', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns created: true with the new draft messageId on success', async () => {
+    const { chain } = makeClient({
+      post: { id: 'draft-1', subject: 'Test Draft', webLink: 'https://outlook.office.com/mail/draft-1' },
+    });
+
+    const result = await handleCreateDraft({
+      to: ['recipient@example.com'],
+      subject: 'Test Draft',
+      body: 'Draft body',
+    });
+
+    expect(result.isError).toBeFalsy();
+    const body = JSON.parse(result.content[0].text as string);
+    expect(body).toEqual({
+      created: true,
+      messageId: 'draft-1',
+      subject: 'Test Draft',
+      webLink: 'https://outlook.office.com/mail/draft-1',
+    });
+    expect(chain.post).toHaveBeenCalled();
+  });
+
+  it('POSTs to /me/messages by default (not /sendMail — this must never send)', async () => {
+    const { client } = makeClient({ post: { id: 'draft-1' } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/me');
+
+    await handleCreateDraft({ subject: 'Hi', body: 'Body' });
+
+    expect(client.api).toHaveBeenCalledWith('/me/messages');
+  });
+
+  it('POSTs to /users/{mailbox}/messages when mailbox is provided', async () => {
+    const { client } = makeClient({ post: { id: 'draft-1' } });
+    vi.mocked(getApiBase).mockReturnValueOnce('/users/user@example.com');
+
+    await handleCreateDraft({ subject: 'Hi', body: 'Body', mailbox: 'user@example.com' });
+
+    expect(client.api).toHaveBeenCalledWith('/users/user@example.com/messages');
+  });
+
+  it('creates a blank draft when no fields are provided at all', async () => {
+    const { chain } = makeClient({ post: { id: 'draft-blank' } });
+
+    const result = await handleCreateDraft({});
+
+    expect(result.isError).toBeFalsy();
+    expect(chain.post).toHaveBeenCalledWith({});
+  });
+
+  it('includes to/cc/bcc recipients only when provided', async () => {
+    const { chain } = makeClient({ post: { id: 'draft-1' } });
+
+    await handleCreateDraft({
+      to: ['to@example.com'],
+      cc: ['cc@example.com'],
+      bcc: ['bcc@example.com'],
+      subject: 'S',
+      body: 'B',
+    });
+
+    const callArg = chain.post.mock.calls[0][0] as Record<string, unknown>;
+    expect(callArg.toRecipients).toBeDefined();
+    expect(callArg.ccRecipients).toBeDefined();
+    expect(callArg.bccRecipients).toBeDefined();
+  });
+
+  it('defaults contentType to text when body is provided', async () => {
+    const { chain } = makeClient({ post: { id: 'draft-1' } });
+
+    await handleCreateDraft({ subject: 'S', body: 'B' });
+
+    const callArg = chain.post.mock.calls[0][0] as { body: { contentType: string } };
+    expect(callArg.body.contentType).toBe('text');
+  });
+
+  it('uses html contentType when explicitly requested', async () => {
+    const { chain } = makeClient({ post: { id: 'draft-1' } });
+
+    await handleCreateDraft({ subject: 'S', body: '<b>B</b>', contentType: 'html' });
+
+    const callArg = chain.post.mock.calls[0][0] as { body: { contentType: string } };
+    expect(callArg.body.contentType).toBe('html');
+  });
+
+  it('returns isError on Graph failure', async () => {
+    const { chain } = makeClient();
+    chain.post.mockRejectedValueOnce(makeGraphError(403, 'AccessDenied', 'Forbidden'));
+
+    const result = await handleCreateDraft({ subject: 'S', body: 'B' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('403');
   });
 });
