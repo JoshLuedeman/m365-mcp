@@ -32,6 +32,32 @@ export const SearchEmailsSchema = {
     .max(100)
     .optional()
     .describe('Maximum number of emails to return (1-100)'),
+  bulkCategory: z
+    .string()
+    .optional()
+    .describe(
+      'Filter by Microsoft Defender for Office 365\'s bulk/promotions mail classification ' +
+        '(the "Promotions" tag shown in Outlook on the web / new Outlook for Windows, and the ' +
+        'signal behind auto-routing into the Promotions folder). Case-insensitive exact match ' +
+        'against the X-MS-Exchange-Organization-BulkCategory internet message header value, ' +
+        'e.g. "Promotions". Pass an empty string ("") to match messages with NO bulk-category ' +
+        'header at all. Graph does not support server-side filtering on this header, so when ' +
+        'this is set the tool fetches messages with their headers and filters client-side, ' +
+        'scanning up to maxScan messages (default 500, max 2000) to collect up to `top` matches ' +
+        '— it may scan more messages than `top` to find enough matches, and can return fewer ' +
+        'than `top` if the scan cap is reached first.',
+    ),
+  maxScan: z
+    .number()
+    .int()
+    .min(1)
+    .max(2000)
+    .optional()
+    .describe(
+      'Only used with bulkCategory: maximum number of messages to fetch and inspect while ' +
+        'searching for matches (default 500, max 2000). Raise this if a folder has a lot of ' +
+        'non-matching mail ahead of the matches you want.',
+    ),
   mailbox: mailboxField,
 };
 

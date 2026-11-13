@@ -117,8 +117,8 @@ On subsequent runs the server loads the cached token silently. The refresh token
 
 | Tool | Description |
 |------|-------------|
-| `search_emails` | Search emails by keyword, sender, date range, or folder |
-| `read_email` | Read the full content of an email by ID |
+| `search_emails` | Search emails by keyword, sender, date range, folder, or Microsoft Defender bulk/promotions classification (`bulkCategory` — the "Promotions" tag/folder signal) |
+| `read_email` | Read the full content of an email by ID, including its `bulkCategory` field when Defender has tagged it (e.g. `"Promotions"`) |
 | `send_email` | Send a new email |
 | `flag_email` | Flag or unflag an email for follow-up |
 | `list_mail_folders` | List all mail folders in the mailbox |

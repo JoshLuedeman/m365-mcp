@@ -28,14 +28,16 @@ import {
 export function register(server: McpServer): void {
   server.tool(
     'search_emails',
-    'Search emails by query, sender, date range, or folder',
+    'Search emails by query, sender, date range, folder, or Microsoft Defender bulk/promotions ' +
+      'classification (bulkCategory — the "Promotions" tag/folder signal)',
     SearchEmailsSchema,
     async (params) => handleSearchEmails(params),
   );
 
   server.tool(
     'read_email',
-    'Read the full content of an email message by ID',
+    'Read the full content of an email message by ID, including its bulkCategory field when ' +
+      'Microsoft Defender has tagged it (e.g. "Promotions")',
     ReadEmailSchema,
     async ({ messageId, mailbox }) => handleReadEmail(messageId, mailbox),
   );

@@ -56,6 +56,25 @@ function makeClient(responses: { get?: unknown; post?: unknown; patch?: unknown 
   return { client, chain };
 }
 
+/**
+ * Builds a client mock that returns one response per sequential api() call,
+ * cycling through `pages` in order. Used for bulkCategory scan tests, which
+ * may issue more than one request as it follows @odata.nextLink.
+ */
+function makeMultiPageClient(pages: Array<{ get: unknown }>) {
+  let callIndex = 0;
+  const chains = pages.map((responses) => makeChain(responses));
+  const client = {
+    api: vi.fn(() => {
+      const chain = chains[Math.min(callIndex, chains.length - 1)];
+      callIndex += 1;
+      return chain;
+    }),
+  };
+  vi.mocked(getGraphClient).mockReturnValue(client as ReturnType<typeof getGraphClient>);
+  return { client, chains };
+}
+
 function makeGraphError(statusCode: number, code: string, message: string) {
   return Object.assign(new Error(message), {
     statusCode,
@@ -152,6 +171,124 @@ describe('handleSearchEmails', () => {
     expect(getApiBase).toHaveBeenCalledWith(undefined);
     expect(client.api).toHaveBeenCalledWith('/me/messages');
   });
+
+  // --- bulkCategory filtering ---
+  describe('bulkCategory filtering', () => {
+    function messageWithBulkCategory(id: string, value?: string) {
+      return {
+        id,
+        subject: `msg-${id}`,
+        internetMessageHeaders:
+          value === undefined
+            ? []
+            : [{ name: 'X-MS-Exchange-Organization-BulkCategory', value }],
+      };
+    }
+
+    it('selects internetMessageHeaders and returns only matching messages', async () => {
+      const { chain } = makeClient({
+        get: {
+          value: [
+            messageWithBulkCategory('m1', 'Promotions'),
+            messageWithBulkCategory('m2'),
+            messageWithBulkCategory('m3', 'Promotions'),
+          ],
+        },
+      });
+
+      const result = await handleSearchEmails({ bulkCategory: 'Promotions' });
+
+      expect(chain.select).toHaveBeenCalledWith(expect.stringContaining('internetMessageHeaders'));
+      const body = JSON.parse(result.content[0].text as string);
+      expect(body.messages).toHaveLength(2);
+      expect(body.messages.map((m: { id: string }) => m.id)).toEqual(['m1', 'm3']);
+      expect(body.messages[0].bulkCategory).toBe('Promotions');
+      expect(body.messages[0].internetMessageHeaders).toBeUndefined();
+    });
+
+    it('matches case-insensitively', async () => {
+      makeClient({ get: { value: [messageWithBulkCategory('m1', 'promotions')] } });
+
+      const result = await handleSearchEmails({ bulkCategory: 'Promotions' });
+      const body = JSON.parse(result.content[0].text as string);
+
+      expect(body.messages).toHaveLength(1);
+    });
+
+    it('matches messages with no bulk-category header when bulkCategory is empty string', async () => {
+      makeClient({
+        get: {
+          value: [messageWithBulkCategory('m1', 'Promotions'), messageWithBulkCategory('m2')],
+        },
+      });
+
+      const result = await handleSearchEmails({ bulkCategory: '' });
+      const body = JSON.parse(result.content[0].text as string);
+
+      expect(body.messages.map((m: { id: string }) => m.id)).toEqual(['m2']);
+    });
+
+    it('stops scanning once `top` matches are found', async () => {
+      const { chain } = makeClient({
+        get: {
+          value: [
+            messageWithBulkCategory('m1', 'Promotions'),
+            messageWithBulkCategory('m2', 'Promotions'),
+            messageWithBulkCategory('m3', 'Promotions'),
+          ],
+        },
+      });
+
+      const result = await handleSearchEmails({ bulkCategory: 'Promotions', top: 2 });
+      const body = JSON.parse(result.content[0].text as string);
+
+      expect(body.messages).toHaveLength(2);
+      expect(chain.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('follows @odata.nextLink pages until maxScan is reached', async () => {
+      const { client } = makeMultiPageClient([
+        {
+          get: {
+            value: [messageWithBulkCategory('m1')],
+            '@odata.nextLink': 'https://graph.microsoft.com/v1.0/next-page-1',
+          },
+        },
+        {
+          get: {
+            value: [messageWithBulkCategory('m2', 'Promotions')],
+          },
+        },
+      ]);
+
+      const result = await handleSearchEmails({ bulkCategory: 'Promotions', maxScan: 10 });
+      const body = JSON.parse(result.content[0].text as string);
+
+      expect(client.api).toHaveBeenNthCalledWith(2, 'https://graph.microsoft.com/v1.0/next-page-1');
+      expect(body.messages.map((m: { id: string }) => m.id)).toEqual(['m2']);
+      expect(body.scanned).toBe(2);
+    });
+
+    it('reports scanLimitReached when maxScan is exhausted before finding `top` matches', async () => {
+      makeClient({ get: { value: [messageWithBulkCategory('m1')] } });
+
+      const result = await handleSearchEmails({ bulkCategory: 'Promotions', maxScan: 1, top: 5 });
+      const body = JSON.parse(result.content[0].text as string);
+
+      expect(body.messages).toHaveLength(0);
+      expect(body.scanned).toBe(1);
+      expect(body.scanLimitReached).toBe(true);
+    });
+
+    it('returns isError on Graph failure during scan', async () => {
+      const { chain } = makeClient();
+      chain.get.mockRejectedValueOnce(makeGraphError(403, 'AccessDenied', 'Forbidden'));
+
+      const result = await handleSearchEmails({ bulkCategory: 'Promotions' });
+
+      expect(result.isError).toBe(true);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -169,6 +306,34 @@ describe('handleReadEmail', () => {
 
     expect(result.isError).toBeFalsy();
     expect(JSON.parse(result.content[0].text as string)).toEqual(message);
+  });
+
+  it('selects internetMessageHeaders and surfaces bulkCategory, stripping raw headers', async () => {
+    const message = {
+      id: 'm1',
+      subject: 'Hello',
+      internetMessageHeaders: [
+        { name: 'X-MS-Exchange-Organization-BulkCategory', value: 'Promotions' },
+      ],
+    };
+    const { chain } = makeClient({ get: message });
+
+    const result = await handleReadEmail('m1');
+    const body = JSON.parse(result.content[0].text as string);
+
+    expect(chain.select).toHaveBeenCalledWith(expect.stringContaining('internetMessageHeaders'));
+    expect(body.bulkCategory).toBe('Promotions');
+    expect(body.internetMessageHeaders).toBeUndefined();
+  });
+
+  it('omits bulkCategory when the message carries no bulk-category header', async () => {
+    const message = { id: 'm1', subject: 'Hello', internetMessageHeaders: [] };
+    makeClient({ get: message });
+
+    const result = await handleReadEmail('m1');
+    const body = JSON.parse(result.content[0].text as string);
+
+    expect(body.bulkCategory).toBeUndefined();
   });
 
   it('calls the correct endpoint without mailbox', async () => {
