@@ -9,6 +9,7 @@ import {
   DeleteEmailSchema,
   MarkReadSchema,
   EnsureFolderSchema,
+  CreateDraftSchema,
 } from './schemas.js';
 import {
   handleSearchEmails,
@@ -21,19 +22,22 @@ import {
   handleDeleteEmail,
   handleMarkRead,
   handleEnsureFolder,
+  handleCreateDraft,
 } from './handlers.js';
 
 export function register(server: McpServer): void {
   server.tool(
     'search_emails',
-    'Search emails by query, sender, date range, or folder',
+    'Search emails by query, sender, date range, folder, or Microsoft Defender bulk/promotions ' +
+      'classification (bulkCategory — the "Promotions" tag/folder signal)',
     SearchEmailsSchema,
     async (params) => handleSearchEmails(params),
   );
 
   server.tool(
     'read_email',
-    'Read the full content of an email message by ID',
+    'Read the full content of an email message by ID, including its bulkCategory field when ' +
+      'Microsoft Defender has tagged it (e.g. "Promotions")',
     ReadEmailSchema,
     async ({ messageId, mailbox }) => handleReadEmail(messageId, mailbox),
   );
@@ -93,5 +97,12 @@ export function register(server: McpServer): void {
     'Get an existing mail folder by name, or create it if it does not exist. Returns the folder ID and a created flag.',
     EnsureFolderSchema,
     async (params) => handleEnsureFolder(params),
+  );
+
+  server.tool(
+    'create_draft',
+    'Create a new draft email message in the Drafts folder, without sending it. All fields are optional so a blank draft can be created and filled in later.',
+    CreateDraftSchema,
+    async (params) => handleCreateDraft(params),
   );
 }

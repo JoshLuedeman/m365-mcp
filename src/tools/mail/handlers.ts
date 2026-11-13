@@ -5,6 +5,10 @@ import { getGraphClient, getApiBase } from '../../graph/client.js';
 import { collectAllPages } from '../../utils/pagination.js';
 import { formatResponse, formatError } from '../../utils/formatting.js';
 import { parseGraphError } from '../../utils/errors.js';
+import { extractBulkCategory, withoutRawHeaders } from '../../utils/headers.js';
+
+const SEARCH_SELECT_FIELDS = 'id,subject,from,receivedDateTime,bodyPreview,isRead,flag,hasAttachments';
+const DEFAULT_MAX_SCAN = 500;
 
 interface SearchEmailsParams {
   query?: string;
@@ -13,7 +17,21 @@ interface SearchEmailsParams {
   endDate?: string;
   folder?: string;
   top?: number;
+  bulkCategory?: string;
+  maxScan?: number;
   mailbox?: string;
+}
+
+/**
+ * Shapes a message for the bulkCategory-filtered path: extracts the bulk/promotions
+ * classification into a top-level `bulkCategory` field (matching handleReadEmail's
+ * shape) and drops the raw internetMessageHeaders collection it was read from, so
+ * responses stay close in size to the unfiltered search path's.
+ */
+function withBulkCategoryField(message: Message): Message & { bulkCategory?: string } {
+  const bulkCategory = extractBulkCategory(message);
+  const stripped = withoutRawHeaders(message);
+  return bulkCategory !== undefined ? { ...stripped, bulkCategory } : stripped;
 }
 
 export async function handleSearchEmails(params: SearchEmailsParams): Promise<CallToolResult> {
@@ -27,12 +45,6 @@ export async function handleSearchEmails(params: SearchEmailsParams): Promise<Ca
         ? `${base}/mailFolders/${params.folder}/messages`
         : `${base}/messages`;
 
-    let request = client.api(folderSegment);
-
-    if (params.query !== undefined) {
-      request = request.search(`"${params.query}"`);
-    }
-
     const filters: string[] = [];
     if (params.from !== undefined) {
       filters.push(`from/emailAddress/address eq '${params.from}'`);
@@ -43,15 +55,82 @@ export async function handleSearchEmails(params: SearchEmailsParams): Promise<Ca
     if (params.endDate !== undefined) {
       filters.push(`receivedDateTime le ${params.endDate}T23:59:59Z`);
     }
+
+    // --- bulkCategory path -------------------------------------------------
+    // Graph has no server-side filter support for internetMessageHeaders
+    // (confirmed live: ErrorInvalidProperty, "does not support filtering"), so
+    // this scans pages of messages (headers included) and filters client-side
+    // until `top` matches are found or `maxScan` messages have been inspected.
+    if (params.bulkCategory !== undefined) {
+      const top = params.top ?? 25;
+      const maxScan = params.maxScan ?? DEFAULT_MAX_SCAN;
+      const wanted = params.bulkCategory.toLowerCase();
+      const pageSize = Math.min(maxScan, 100);
+
+      const matches: Array<Message & { bulkCategory?: string }> = [];
+      let scanned = 0;
+      let nextUrl: string | undefined;
+
+      while (scanned < maxScan && matches.length < top) {
+        let request = client.api(nextUrl ?? folderSegment);
+
+        if (nextUrl === undefined) {
+          if (params.query !== undefined) {
+            request = request.search(`"${params.query}"`);
+          }
+          if (filters.length > 0) {
+            request = request.filter(filters.join(' and '));
+          }
+          request = request.top(pageSize);
+          request = request.select(`${SEARCH_SELECT_FIELDS},internetMessageHeaders`);
+        }
+
+        const response = (await request.get()) as {
+          value?: Message[];
+          '@odata.nextLink'?: string;
+        };
+        const page = response.value ?? [];
+        scanned += page.length;
+
+        for (const message of page) {
+          const bulkCategory = extractBulkCategory(message);
+          const matched =
+            wanted === '' ? bulkCategory === undefined : bulkCategory?.toLowerCase() === wanted;
+          if (matched) {
+            matches.push(withBulkCategoryField(message));
+            if (matches.length >= top) {
+              break;
+            }
+          }
+        }
+
+        nextUrl = response['@odata.nextLink'];
+        if (nextUrl === undefined || page.length === 0) {
+          break;
+        }
+      }
+
+      return formatResponse({
+        messages: matches,
+        scanned,
+        scanLimitReached: scanned >= maxScan && matches.length < top,
+      });
+    }
+
+    // --- default path (unchanged behavior) ----------------------------------
+    let request = client.api(folderSegment);
+
+    if (params.query !== undefined) {
+      request = request.search(`"${params.query}"`);
+    }
     if (filters.length > 0) {
       request = request.filter(filters.join(' and '));
     }
-
     if (params.top !== undefined) {
       request = request.top(params.top);
     }
 
-    request = request.select('id,subject,from,receivedDateTime,bodyPreview,isRead,flag,hasAttachments');
+    request = request.select(SEARCH_SELECT_FIELDS);
 
     const response = await request.get() as { value?: Message[] };
     return formatResponse(response.value ?? []);
@@ -67,9 +146,11 @@ export async function handleReadEmail(messageId: string, mailbox?: string): Prom
     const base = getApiBase(mailbox);
     const message = await client
       .api(`${base}/messages/${messageId}`)
-      .select('id,subject,from,toRecipients,ccRecipients,receivedDateTime,body,isRead,flag,hasAttachments')
+      .select(
+        'id,subject,from,toRecipients,ccRecipients,receivedDateTime,body,isRead,flag,hasAttachments,internetMessageHeaders',
+      )
       .get() as Message;
-    return formatResponse(message);
+    return formatResponse(withBulkCategoryField(message));
   } catch (err) {
     return formatError(parseGraphError(err));
   }
@@ -263,6 +344,54 @@ export async function handleMarkRead(params: MarkReadParams): Promise<CallToolRe
       .patch({ isRead }) as Message;
 
     return formatResponse(updated);
+  } catch (err) {
+    return formatError(parseGraphError(err));
+  }
+}
+
+interface CreateDraftParams {
+  to?: string[];
+  subject?: string;
+  body?: string;
+  cc?: string[];
+  bcc?: string[];
+  contentType?: 'text' | 'html';
+  mailbox?: string;
+}
+
+/**
+ * Creates a new draft message in the signed-in user's Drafts folder.
+ * Unlike handleSendEmail (which POSTs to /sendMail and never touches
+ * Drafts), this POSTs directly to /messages — Graph's documented way to
+ * create a draft: a message created this way lands in Drafts and is NOT
+ * sent until a separate explicit send action (e.g. PATCH-then-POST
+ * /messages/{id}/send) is taken. Every field is optional so a caller can
+ * create a blank draft and fill it in with follow-up edits if needed,
+ * matching Outlook's own "New email" blank-draft behavior.
+ */
+export async function handleCreateDraft(params: CreateDraftParams): Promise<CallToolResult> {
+  try {
+    const token = await getAccessToken();
+    const client = getGraphClient(token);
+    const base = getApiBase(params.mailbox);
+
+    const contentType = params.contentType ?? 'text';
+
+    const draft: Record<string, unknown> = {};
+    if (params.subject !== undefined) draft.subject = params.subject;
+    if (params.body !== undefined) draft.body = { contentType, content: params.body };
+    if (params.to !== undefined) draft.toRecipients = toRecipients(params.to);
+    if (params.cc !== undefined) draft.ccRecipients = toRecipients(params.cc);
+    if (params.bcc !== undefined) draft.bccRecipients = toRecipients(params.bcc);
+
+    const created = await client.api(`${base}/messages`).post(draft) as Message;
+
+    return formatResponse({
+      created: true,
+      messageId: created.id,
+      subject: created.subject,
+      webLink: created.webLink,
+    });
   } catch (err) {
     return formatError(parseGraphError(err));
   }
